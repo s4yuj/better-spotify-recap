@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from flask import Flask, redirect, request, session, url_for
 from spotipy.cache_handler import FlaskSessionCacheHandler
 import json
+import utils
 
 load_dotenv()
 
@@ -55,25 +56,15 @@ def results():
         auth_url = sp.oauth.get_authorize_url()
         return redirect(auth_url)
     
-    top_tracks = sp.current_user_top_tracks(limit=50, time_range="medium_term")
-    #pretty print the json object
-    with open('output_tracks.json', "w") as f:
-        json.dump(top_tracks, f, indent=4)
-        print(f'length of recently played json: {len(top_tracks["items"])}')
+    top_tracks = utils.get_stat(sp)
 
-    top_artists = sp.current_user_top_artists(limit=50, time_range='medium_term')
-    with open('output_artists.json', "w") as f:
-        json.dump(top_artists, f, indent=4)
-        print(f'length of recently played json: {len(top_artists["items"])}')
+    recently_played = utils.get_recently_played(sp)
 
-    current_time=int(time.time()*1000)
-    one_month_ago = current_time - (28 * 24 * 60 * 60 * 1000)  # 7 days in milliseconds
-
-    recently_played = sp.current_user_recently_played(limit=50, after=one_month_ago)
-    with open("output_recently_played.json", "w") as f:
-        json.dump(recently_played, f, indent=4)
-        print(f'length of recently played json: {len(recently_played["items"])}')
+    for track in recently_played.values():
+        # print(track["Name"])
+        pass
 
     return "Check the output files"
+
 if __name__ == '__main__':
     app.run(debug = True)
