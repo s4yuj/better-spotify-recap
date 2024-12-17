@@ -3,7 +3,7 @@ import time
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
-from flask import Flask, redirect, request, session, url_for
+from flask import Flask, redirect, request, session, url_for, render_template
 from spotipy.cache_handler import FlaskSessionCacheHandler
 import utils
 
@@ -40,19 +40,7 @@ def home():
     if not sp_oauth.validate_token(cache_handler.get_cached_token()):
         #get_authorize_url() returns the URL to authorize spotify
         auth_url = sp_oauth.get_authorize_url()
-        return f'''
-        <html>
-            <head>
-                <title>Spotify Un-Wrapped</title>
-            </head>
-            <body>
-                <h1>Spotify Un-Wrapped</h1>
-                <a href="{auth_url}">
-                    <button>Log in to Spotify</button>
-                </a>
-            </body>
-        </html>
-        '''
+        return render_template('home.html', auth_url=auth_url)
     return redirect(url_for('results'))
 
 @app.route('/callback')
