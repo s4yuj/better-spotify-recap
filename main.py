@@ -5,7 +5,6 @@ from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
 from flask import Flask, redirect, request, session, url_for
 from spotipy.cache_handler import FlaskSessionCacheHandler
-import json
 import utils
 
 load_dotenv()
@@ -41,23 +40,50 @@ def home():
     if not sp_oauth.validate_token(cache_handler.get_cached_token()):
         #get_authorize_url() returns the URL to authorize spotify
         auth_url = sp_oauth.get_authorize_url()
-        return redirect(auth_url)
+        return f'''
+        <html>
+            <head>
+                <title>Spotify Un-Wrapped</title>
+            </head>
+            <body>
+                <h1>Spotify Un-Wrapped</h1>
+                <a href="{auth_url}">
+                    <button>Log in to Spotify</button>
+                </a>
+            </body>
+        </html>
+        '''
     return redirect(url_for('results'))
 
 @app.route('/callback')
 def callback():
-    sp_oauth.get_access_token(request.args['code'])
+    token_info = sp_oauth.get_access_token(request.args['code'])
+    session['token_info'] = token_info
     return redirect(url_for('results'))
 
-@app.route('/results')
-#this might be the place where you should abstract out the model logic to another file
-def results():
-    if not sp_oauth.get_authorize_url(cache_handler.get_cached_token()):
-        auth_url = sp.oauth.get_authorize_url()
-        return redirect(auth_url)
-    
-    top_tracks = utils.get_stat(sp)
+def get_token():
+    token_info = session.get('token_info', None)
+    if not token_info:
+        return None
 
+    now = int(time.time())
+    is_expired = token_info['expires_at'] - now < 60
+
+    if is_expired:
+        token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
+        session['token_info'] = token_info
+
+    return token_info
+
+@app.route('/results')
+def results():
+    token_info = get_token()
+    if not token_info:
+        return redirect(url_for('home'))
+
+    sp = spotipy.Spotify(auth=token_info['access_token'])
+
+    top_tracks = utils.get_stat(sp)
     recently_played = utils.get_recently_played(sp)
 
     for track in recently_played.values():
