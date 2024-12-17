@@ -6,8 +6,7 @@ from dotenv import load_dotenv
 from flask import Flask, redirect, request, session, url_for, render_template
 from spotipy.cache_handler import FlaskSessionCacheHandler
 import utils
-
-load_dotenv()
+import requests
 
 app = Flask(__name__)
 #a session is like a container that can store data -- this data is available across requests
@@ -16,10 +15,12 @@ app = Flask(__name__)
 #we dont want users tampering with that data. So we use a secret key to encrpyt the data
 app.config['SECRET_KEY'] = os.urandom(69)
 
+load_dotenv(override=True)
+
 cache_handler = FlaskSessionCacheHandler(session)
 
 #TODO: look into most effective scope for application
-SCOPE = "user-top-read user-read-recently-played"
+SCOPE = "user-top-read user-read-recently-played user-read-private user-read-email user-library-read"
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 REDIRECT_URI = "http://localhost:5000/callback"
@@ -45,9 +46,11 @@ def home():
 
 @app.route('/callback')
 def callback():
-    token_info = sp_oauth.get_access_token(request.args['code'])
+    session.clear()
+    code = request.args.get('code')
+    token_info = sp_oauth.get_access_token(code)
     session['token_info'] = token_info
-    return redirect(url_for('results'))
+    return redirect('/')
 
 def get_token():
     token_info = session.get('token_info', None)
@@ -71,14 +74,29 @@ def results():
 
     sp = spotipy.Spotify(auth=token_info['access_token'])
 
-    top_tracks = utils.get_stat(sp)
-    recently_played = utils.get_recently_played(sp)
+    # top_tracks = utils.get_stat()
+    recently_played = utils.get_recently_played()
+    track_ids = [recently_played[key]['ID'] for key in recently_played]
 
-    for track in recently_played.values():
-        # print(track["Name"])
-        pass
+    # try:
+    #     audio_features = sp.audio_features(tracks=track_ids)
+    # except spotipy.exceptions.SpotifyException as e:
+    #     return f"Error fetching audio features: {e.msg}"
 
-    return "Check the output files"
+    # audio_features = sp.audio_features(tracks=track_ids[0])
+
+    headers = {
+        'Authorization': f'Bearer {token_info["access_token"]}',
+    }
+    url = f"https://api.spotify.com/v1/audio-features/?ids={','.join(track_ids)}"
+    response = requests.get(url, headers=headers)
+    
+    print("Response Headers:", response.headers)
+    response.raise_for_status()  # This will raise an HTTPError if the response was an HTTP error
+
+    audio_features = response.json()
+
+    return audio_features
 
 if __name__ == '__main__':
     app.run(debug = True)
