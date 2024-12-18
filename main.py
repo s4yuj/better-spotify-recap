@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from flask import Flask, redirect, request, session, url_for, render_template
 from spotipy.cache_handler import FlaskSessionCacheHandler
 import utils
-import requests
+
 
 app = Flask(__name__)
 #a session is like a container that can store data -- this data is available across requests
@@ -32,9 +32,9 @@ sp_oauth = SpotifyOAuth(
     scope=SCOPE,
     cache_handler=cache_handler,
     show_dialog=True)
-sp = spotipy.Spotify(auth_manager = sp_oauth)
 
-#this is the home endpoint
+# sp = spotipy.Spotify(auth_manager = sp_oauth)
+
 @app.route('/')
 def home():
     #check if token is valid and present
@@ -47,56 +47,15 @@ def home():
 @app.route('/callback')
 def callback():
     session.clear()
-    code = request.args.get('code')
-    token_info = sp_oauth.get_access_token(code)
+    token_info = sp_oauth.get_access_token(request.args.get('code'))
     session['token_info'] = token_info
     return redirect('/')
 
-def get_token():
-    token_info = session.get('token_info', None)
-    if not token_info:
-        return None
-
-    now = int(time.time())
-    is_expired = token_info['expires_at'] - now < 60
-
-    if is_expired:
-        token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
-        session['token_info'] = token_info
-
-    return token_info
-
 @app.route('/results')
 def results():
-    token_info = get_token()
-    if not token_info:
-        return redirect(url_for('home'))
-
-    sp = spotipy.Spotify(auth=token_info['access_token'])
-
-    # top_tracks = utils.get_stat()
+    top_tracks = utils.get_top_tracks()
     recently_played = utils.get_recently_played()
-    track_ids = [recently_played[key]['ID'] for key in recently_played]
 
-    # try:
-    #     audio_features = sp.audio_features(tracks=track_ids)
-    # except spotipy.exceptions.SpotifyException as e:
-    #     return f"Error fetching audio features: {e.msg}"
-
-    # audio_features = sp.audio_features(tracks=track_ids[0])
-
-    headers = {
-        'Authorization': f'Bearer {token_info["access_token"]}',
-    }
-    url = f"https://api.spotify.com/v1/audio-features/?ids={','.join(track_ids)}"
-    response = requests.get(url, headers=headers)
-    
-    print("Response Headers:", response.headers)
-    response.raise_for_status()  # This will raise an HTTPError if the response was an HTTP error
-
-    audio_features = response.json()
-
-    return audio_features
-
+    return "Results displayed in console"
 if __name__ == '__main__':
     app.run(debug = True)
